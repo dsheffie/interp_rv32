@@ -27,6 +27,7 @@ struct branch {
 
 class branchtracker {
 private:
+  uint64_t dyn_branches = 0;
   std::map<uint32_t, branch*> bmap;
 public:
   void update(uint32_t pc, bool taken);
