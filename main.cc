@@ -75,6 +75,7 @@ int main(int argc, char *argv[]) {
   std::string sysArgs, filename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
   bool hash = false;
+  int histlen = 128;
 
   try {
     po::options_description desc("Options");
@@ -87,6 +88,7 @@ int main(int argc, char *argv[]) {
       ("dumpicnt", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
+      ("histlen", po::value<int>(&histlen)->default_value(128), "global history length")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -113,7 +115,7 @@ int main(int argc, char *argv[]) {
   }
 
   globals::bt = new branchtracker();
-  globals::H.resize(8);
+  globals::H.resize(histlen);
   
   /* Build argc and argv */
   globals::sysArgc = buildArgcArgv(filename.c_str(),sysArgs,globals::sysArgv);

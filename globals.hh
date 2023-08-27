@@ -2,7 +2,6 @@
 #define __GLOBALSH__
 
 #include <boost/dynamic_bitset.hpp>
-
 class branchtracker;
 
 typedef boost::dynamic_bitset<> globalhist_t;

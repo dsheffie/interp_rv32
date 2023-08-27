@@ -11,13 +11,15 @@ void branchtracker::update(uint32_t pc, bool taken) {
   }
   branch *b = bmap.at(pc);
   b->count++;
+  std::string str;
+  boost::to_string(globals::H, str);
   
   if(taken) {
-    b->t_patterns[globals::H]++;
+    b->t_patterns[str]++;
     b->tcount++;
   }
   else {
-    b->nt_patterns[globals::H]++;
+    b->nt_patterns[str]++;
     b->ntcount++;
   }
   //b->sanity_check();
@@ -44,16 +46,13 @@ void branchtracker::report() {
 
 
     for(auto &p : b->t_patterns) {
-      const globalhist_t &pat = p.first;
+      const auto &pat = p.first;
       double t_count = static_cast<double>(p.second);
       b_dyn_t += p.second;
       double nt_count = 0.0;
-      assert(p.second != 0);
-
 
       auto it = b->nt_patterns.find(pat);
       if(it != b->nt_patterns.end()) {
-	assert(it->first == pat);
 	nt_count = static_cast<double>(it->second);
 	b_dyn_nt += it->second;
       }
