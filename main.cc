@@ -23,16 +23,20 @@
 #include "interpret.hh"
 #include "saveState.hh"
 #include "globals.hh"
+#include "branchtracker.hh"
 
 extern const char* githash;
-uint32_t globals::tohost_addr = 0;
-uint32_t globals::fromhost_addr = 0;
-bool globals::log = false;
-std::map<std::string, uint32_t> globals::symtab;
-char **globals::sysArgv = nullptr;
-int globals::sysArgc = 0;
-bool globals::silent = true;
-
+namespace globals {
+  uint32_t tohost_addr = 0;
+  uint32_t fromhost_addr = 0;
+  bool log = false;
+  std::map<std::string, uint32_t> symtab;
+  char **sysArgv = nullptr;
+  int sysArgc = 0;
+  bool silent = true;
+  branchtracker *bt = nullptr;
+  boost::dynamic_bitset<> H;
+};
 static state_t *s = nullptr;
 
 
@@ -108,6 +112,9 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  globals::bt = new branchtracker();
+  globals::H.resize(8);
+  
   /* Build argc and argv */
   globals::sysArgc = buildArgcArgv(filename.c_str(),sysArgs,globals::sysArgv);
 
@@ -170,6 +177,8 @@ int main(int argc, char *argv[]) {
     }
     delete [] globals::sysArgv;
   }
+  globals::bt->report();
+  delete globals::bt;
   free(s);
   stopCapstone();
 

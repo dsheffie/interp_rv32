@@ -14,6 +14,7 @@
 #include <map>
 #include <stack>
 
+#include "branchtracker.hh"
 #include "interpret.hh"
 #include "disassemble.hh"
 #include "helper.hh"
@@ -240,6 +241,8 @@ static inline void execRiscv(state_t *s) {
 	s->gpr[m.jj.rd] = s->pc + 4;
       }
       s->pc = tgt;
+      globals::H <<= 1;
+      globals::H[0] = true;
       break;
     }
 
@@ -256,6 +259,8 @@ static inline void execRiscv(state_t *s) {
 	s->gpr[rd] = s->pc + 4;
       }
       s->pc += jaddr;
+      globals::H <<= 1;
+      globals::H[0] = true;      
       break;
     }
     case 0x33: {      
@@ -443,7 +448,11 @@ static inline void execRiscv(state_t *s) {
 	  assert(0);
 	}
       //assert(not(takeBranch));
+      globals::bt->update(s->pc, takeBranch);      
       s->pc = takeBranch ? disp + s->pc : s->pc + 4;
+      //update global history
+      globals::H <<= 1;
+      globals::H[0] = takeBranch;
       break;
     }
 
@@ -514,7 +523,12 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       break;
     }
     case SYS_close: {
-      buf[0] = close(buf[1]);
+      if(buf[1] > 2) {
+	buf[0] = close(buf[1]);
+      }
+      else {
+	buf[0] = 0;
+      }
       break;
     }
     case SYS_read: {
