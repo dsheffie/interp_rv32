@@ -11,15 +11,13 @@ void branchtracker::update(uint32_t pc, bool taken) {
   }
   branch *b = bmap.at(pc);
   b->count++;
-  std::string str;
-  boost::to_string(globals::H, str);
   
   if(taken) {
-    b->t_patterns[str]++;
+    b->t_patterns[globals::H]++;
     b->tcount++;
   }
   else {
-    b->nt_patterns[str]++;
+    b->nt_patterns[globals::H]++;
     b->ntcount++;
   }
   //b->sanity_check();
@@ -59,18 +57,31 @@ void branchtracker::report() {
       double tc = t_count + nt_count;
       double pr = t_count / tc;
       double el = 2 * std::min(pr, 1.0 - pr);
-      
       double prel = (t_count + nt_count)*el;
+
+      //if(pp.first == 0x800001c4) {
+      //	std::cout << pat << "\n";
+      //	std::cout << "t    = " << t_count << "\n";
+      //	std::cout << "nt   = " << nt_count << "\n";
+      //	std::cout << "tot  = " << tc << "\n";
+      //	std::cout << "pr   = " << pr << "\n";
+      //	std::cout << "prel = " << prel << "\n";
+      //}
+	
       
       br_prel += prel;
     }
     
-#if 0    
+#if 1    
     std::cout << std::hex
 	      << pp.first
 	      << " : "
 	      << std::dec
 	      << b->count
+	      << ","
+      << b->ntcount
+      << ","
+      << b->tcount
 	      << " "
 	      << br_prel / static_cast<double>(b->count)
 	      << "\n";

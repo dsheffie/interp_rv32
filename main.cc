@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   std::string sysArgs, filename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
   bool hash = false;
-  int histlen = 128;
+  int histlen = 16; /* 2^histlen possible histories - per branch */
 
   try {
     po::options_description desc("Options");
