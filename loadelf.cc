@@ -45,6 +45,45 @@ bool checkLittleEndian(const Elf32_Ehdr *eh32) {
   return (eh32->e_ident[EI_DATA] == ELFDATA2LSB);
 }
 
+void load_binary(uint32_t addr, const char* fn, state_t *ms) {
+  struct stat s;
+  int fd,rc;
+  char *buf = nullptr;
+  uint8_t *mem = ms->mem;
+  fd = open(fn, O_RDONLY);
+  if(fd<0) {
+    printf("INTERP: open() returned %d\n", fd);
+    exit(-1);
+  }
+  rc = fstat(fd,&s);
+  if(rc<0) {
+    printf("INTERP: fstat() returned %d\n", rc);
+    exit(-1);
+  }
+  buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+
+
+  for(uint32_t i = 0; i < s.st_size; i++) {
+    mem[i+addr] = buf[i];
+  }
+  munmap(buf, s.st_size);
+  close(fd);
+
+#define WRITE_WORD(EA,WORD) { *reinterpret_cast<uint32_t*>(mem + EA) = WORD; }
+
+  WRITE_WORD(0x1000, 0x00000297); //0
+  WRITE_WORD(0x1004, 0x02028593); //1
+  WRITE_WORD(0x1008, 0xf1402573); //2
+  WRITE_WORD(0x100c, 0x0182a283); //3
+  WRITE_WORD(0x1010, 0x00028067); //4
+  WRITE_WORD(0x1014, 0x80000000);
+  WRITE_WORD(0x1018, 0x80000000);
+
+  ms->pc = 0x1000;
+  
+}
+
+
 void load_elf(const char* fn, state_t *ms) {
   struct stat s;
   Elf32_Ehdr *eh32 = nullptr;

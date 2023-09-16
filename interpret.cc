@@ -40,9 +40,17 @@ void initState(state_t *s) {
 
 static inline void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
-
-  uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
+  bool fault = false;
+  uint32_t inst = *reinterpret_cast<uint32_t*>(mem + va2pa(s, s->pc, fault));
+  if(fault)
+    return;
   uint32_t opcode = inst & 127;
+
+  if((inst & 3) != 3) {
+    std::cout << "compressed instruction\n";
+    exit(-1);
+  }
+  //std::cout << "instruction bytes " << std::hex << inst << std::dec << "\n";
   
 #if 0
   std::cout << std::hex << s->pc << "\n";
@@ -53,11 +61,6 @@ static inline void execRiscv(state_t *s) {
 #endif				    
   
   
-  uint64_t tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
-  tohost &= ((1UL<<32)-1);
-  if(tohost) {
-    handle_syscall(s, tohost);
-  }
 
 
   if(globals::log) {
@@ -88,24 +91,27 @@ static inline void execRiscv(state_t *s) {
 	  disp |= 0xfffff000;
 	}
 	uint32_t ea = disp + s->gpr[m.l.rs1];
+	uint32_t pa = va2pa(s, ea, fault);
+	if(fault)
+	  break;	
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
-	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int8_t*>(s->mem + ea)));	 
+	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int8_t*>(s->mem + pa)));	 
 	    break;
 	  case 0x1: /* lh */
-	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(s->mem + ea)));	 
+	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(s->mem + pa)));	 
 	    break;
 	  case 0x2: /* lw */
-	    s->gpr[m.l.rd] = *(reinterpret_cast<int32_t*>(s->mem + ea));
+	    s->gpr[m.l.rd] = *(reinterpret_cast<int32_t*>(s->mem + pa));
 	    break;
 	  case 0x4: {/* lbu */
-	    uint32_t b = s->mem[ea];
+	    uint32_t b = s->mem[pa];
 	    *reinterpret_cast<uint32_t*>(&s->gpr[m.l.rd]) = b;
 	    break;
 	  }
 	  case 0x5: { /* lhu */
-	    uint16_t b = *reinterpret_cast<uint16_t*>(s->mem + ea);
+	    uint16_t b = *reinterpret_cast<uint16_t*>(s->mem + pa);
 	    *reinterpret_cast<uint32_t*>(&s->gpr[m.l.rd]) = b;
 	    break;
 	  }
@@ -192,17 +198,19 @@ static inline void execRiscv(state_t *s) {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       uint32_t ea = disp + s->gpr[m.s.rs1];
-      //std::cout << "STORE EA " << std::hex << ea << std::dec << "\n";      
+      uint32_t pa = va2pa(s, ea, fault);
+      if(fault)
+	break;	      
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
-	  s->mem[ea] = *reinterpret_cast<uint8_t*>(&s->gpr[m.s.rs2]);
+	  s->mem[pa] = *reinterpret_cast<uint8_t*>(&s->gpr[m.s.rs2]);
 	  break;
 	case 0x1: /* sh */
-	  *(reinterpret_cast<uint16_t*>(s->mem + ea)) = *reinterpret_cast<uint16_t*>(&s->gpr[m.s.rs2]);
+	  *(reinterpret_cast<uint16_t*>(s->mem + pa)) = *reinterpret_cast<uint16_t*>(&s->gpr[m.s.rs2]);
 	  break;
 	case 0x2: /* sw */
-	  *(reinterpret_cast<int32_t*>(s->mem + ea)) = s->gpr[m.s.rs2];
+	  *(reinterpret_cast<int32_t*>(s->mem + pa)) = s->gpr[m.s.rs2];
 	  break;
 	default:
 	  assert(0);
@@ -447,15 +455,90 @@ static inline void execRiscv(state_t *s) {
       break;
     }
 
-    case 0x73:
-      if((inst >> 7) == 0) {
-	s->brk = 1;
-      }
-      else {
-	s->pc += 4;
-      }
+    case 0x73: {
+      uint32_t funct = (inst >> 12) & 7;
+      uint32_t rs1 = (inst >> 15) & 31;
+      uint32_t upper12 = (inst>>20) & 4095;
+      printf("funct = %u, rd = %u, rs1 = %u, %x\n",
+	     funct, rd, rs1, inst>>20);
+      switch(funct)
+	{
+	case 0:
+	  if(rd == 0 && rs1 == 0) {
+	    switch(upper12)
+	      {
+	      case 0x105: /* WFI */
+		printf("got wfi\n");
+		s->brk = 1;
+		s->pc += 4;
+		break;
+	      default:
+		assert(false);
+	      }
+	  }
+	  else {
+	    assert(false);
+	  }
+	  break;
+	case 1: { /* csrw */
+	  switch(csr_enum_map.at(upper12))
+	    {
+	    case riscv_csr::mtvec:
+	      s->csr[get_csr_idx(riscv_csr::mtvec)] = s->gpr[rs1];
+	      break;
+	    default:
+	      assert(false);
+	      break;
+	    }
+	  s->pc += 4;
+	  break;
+	}
+	case 2: {/* csrr */
+	  switch(csr_enum_map.at(upper12))
+	    {
+	    case riscv_csr::mhartid:
+	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::mhartid)];
+	      break;
+	    default:
+	      assert(false);
+	      break;
+	    }
+	  s->pc += 4;
+	  break;
+	}
+	case 3:
+	  assert(false);
+	  break;
+	case 4:
+	  assert(false);
+	  break;
+	case 5: /* csrwi */
+	  switch(csr_enum_map.at(upper12))
+            {
+	    case riscv_csr::mscratch:
+	      s->csr[get_csr_idx(riscv_csr::mscratch)] = rs1;
+	      break;
+	    default:
+	      assert(false);
+	      break;
+	    }
+	  s->pc += 4;
+	  break;
+	case 6:
+	  assert(false);
+	  break;
+	case 7:
+	  assert(false);	  
+	  break;
+	}
+      //if((inst >> 7) == 0) {
+      //s->brk = 1;
+      //}
+      //else {
+
+	//}
       break;
-    
+    }
     default:
       std::cout << std::hex << s->pc << std::dec
 		<< " : " << getAsmString(inst, s->pc)
@@ -491,68 +574,3 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
   }
 }
 
-void handle_syscall(state_t *s, uint64_t tohost) {
-  uint8_t *mem = s->mem;  
-  if(tohost & 1) {
-    /* exit */
-    s->brk = 1;
-    return;
-  }
-  uint64_t *buf = reinterpret_cast<uint64_t*>(mem + tohost);
-  switch(buf[0])
-    {
-    case SYS_write: /* int write(int file, char *ptr, int len) */
-      buf[0] = write(buf[1], (void*)(s->mem + buf[2]), buf[3]);
-      if(buf[1]==1)
-	fflush(stdout);
-      else if(buf[1]==2)
-	fflush(stderr);
-      break;
-    case SYS_open: {
-      const char *path = reinterpret_cast<const char*>(s->mem + buf[1]);
-      buf[0] = open(path, remapIOFlags(buf[2]), S_IRUSR|S_IWUSR);
-      break;
-    }
-    case SYS_close: {
-      buf[0] = close(buf[1]);
-      break;
-    }
-    case SYS_read: {
-      buf[0] = read(buf[1], reinterpret_cast<char*>(s->mem + buf[2]), buf[3]); 
-      break;
-    }
-    case SYS_lseek: {
-      buf[0] = lseek(buf[1], buf[2], buf[3]);
-      break;
-    }
-    case SYS_fstat : {
-      struct stat native_stat;
-      stat32_t *host_stat = reinterpret_cast<stat32_t*>(s->mem + buf[2]);
-      int rc = fstat(buf[1], &native_stat);
-      host_stat->st_dev = native_stat.st_dev;
-      host_stat->st_ino = native_stat.st_ino;
-      host_stat->st_mode = native_stat.st_mode;
-      host_stat->st_nlink = native_stat.st_nlink;
-      host_stat->st_uid = native_stat.st_uid;
-      host_stat->st_gid = native_stat.st_gid;
-      host_stat->st_size = native_stat.st_size;
-      host_stat->_st_atime = native_stat.st_atime;
-      host_stat->_st_mtime = 0;
-      host_stat->_st_ctime = 0;
-      host_stat->st_blksize = native_stat.st_blksize;
-      host_stat->st_blocks = native_stat.st_blocks;
-            buf[0] = rc;
-      break;
-    }
-    case SYS_stat : {
-      buf[0] = 0;
-      break;
-    }
-    default:
-      std::cout << "syscall " << buf[0] << " unsupported\n";
-      exit(-1);
-    }
-  //ack
-  *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr) = 0;
-  *reinterpret_cast<uint64_t*>(mem + globals::fromhost_addr) = 1;
-}

@@ -17,10 +17,177 @@ struct state_t{
   uint8_t *mem;
   uint8_t brk;
   uint8_t bad_addr;
-  uint32_t epc;
+  uint32_t csr[64];
   uint64_t maxicnt;
   uint64_t icnt;
 };
+
+enum class riscv_csr {
+  fflags,
+  frm,
+  fcsr,
+  cycle,
+  time,
+  instret,
+  cycleh,
+  timeh,
+  instreth,
+  sstatus,
+  sie,
+  stvec,
+  scounteren,
+  senvcfg,
+  sscratch,
+  sepc,
+  scause,
+  stval,
+  sip,
+  satp,
+  scontext,
+  mvendorid,
+  marchid,
+  mimpid,
+  mhartid,
+  mconfigptr,
+  mstatus,
+  misa,
+  medeleg,
+  mideleg,
+  mie,
+  mtvec,
+  mcounteren,
+  mscratch,
+  mepc,
+  mcause
+};
+
+static const std::map<uint32_t, riscv_csr> csr_enum_map = {
+  {0x001, riscv_csr::fflags},
+  {0x002, riscv_csr::frm},
+  {0x003, riscv_csr::fcsr},    
+  {0xc00, riscv_csr::cycle},
+  {0xc01, riscv_csr::time},
+  {0xc02, riscv_csr::instret},
+  {0xc80, riscv_csr::cycleh},  
+  {0xc81, riscv_csr::timeh},
+  {0xc82, riscv_csr::instreth},      
+  {0x100, riscv_csr::sstatus},
+  {0x104, riscv_csr::sie},
+  {0x105, riscv_csr::stvec},
+  {0x106, riscv_csr::scounteren},
+  {0x10a, riscv_csr::senvcfg},
+  {0x140, riscv_csr::sscratch},
+  {0x141, riscv_csr::sepc},
+  {0x142, riscv_csr::scause},
+  {0x143, riscv_csr::stval},
+  {0x144, riscv_csr::sip},
+  {0x180, riscv_csr::satp},
+  {0x5a8, riscv_csr::scontext},
+  {0xf11, riscv_csr::mvendorid},
+  {0xf12, riscv_csr::marchid},
+  {0xf13, riscv_csr::mimpid},
+  {0xf14, riscv_csr::mhartid},
+  {0xf15, riscv_csr::mconfigptr},
+  {0x300, riscv_csr::mstatus},
+  {0x301, riscv_csr::misa},  
+  {0x302, riscv_csr::medeleg},
+  {0x303, riscv_csr::mideleg},
+  {0x304, riscv_csr::mie},
+  {0x305, riscv_csr::mtvec},
+  {0x306, riscv_csr::mcounteren},      
+  {0x340, riscv_csr::mscratch},    
+};
+
+inline static int get_csr_idx(riscv_csr e)
+{
+  switch(e)
+    {
+    case riscv_csr::fflags:
+      return 0;
+    case riscv_csr::frm:
+      return 1;
+    case riscv_csr::fcsr:
+      return 2;
+    case riscv_csr::cycle:
+      return 3;
+    case riscv_csr::time:
+      return 4;
+    case riscv_csr::instret:
+      return 5;
+    case riscv_csr::cycleh:
+      return 6;
+    case riscv_csr::timeh:
+      return 7;
+    case riscv_csr::instreth:
+      return 8;
+    case riscv_csr::sstatus:
+      return 9;
+    case riscv_csr::sie:
+      return 10;
+    case riscv_csr::stvec:
+      return 11;
+    case riscv_csr::scounteren:
+      return 12;
+    case riscv_csr::senvcfg:
+      return 13;
+    case riscv_csr::sscratch:
+      return 14;
+    case riscv_csr::sepc:
+      return 15;
+    case riscv_csr::scause:
+      return 16;
+    case riscv_csr::stval:
+      return 17;
+    case riscv_csr::sip:
+      return 18;
+    case riscv_csr::satp:
+      return 19;
+    case riscv_csr::scontext:
+      return 20;
+    case riscv_csr::mvendorid:
+      return 21;
+    case riscv_csr::marchid:
+      return 22;
+    case riscv_csr::mimpid:
+      return 23;
+    case riscv_csr::mhartid:
+      return 24;
+    case riscv_csr::mconfigptr:
+      return 25;
+    case riscv_csr::mstatus:
+      return 26;
+    case riscv_csr::misa:
+      return 27;
+    case riscv_csr::medeleg:
+      return 28;
+    case riscv_csr::mideleg:
+      return 29;
+    case riscv_csr::mie:
+      return 30;
+    case riscv_csr::mtvec:      
+      return 31;
+    case riscv_csr::mcounteren:
+      return 32;
+    case riscv_csr::mscratch:
+      return 33;
+    default:
+      break;
+    }
+  assert(false);
+  return -1;
+}
+
+
+static inline uint32_t va2pa(state_t *s, uint32_t va, bool &fault) {
+  uint32_t satp = s->csr[get_csr_idx(riscv_csr::satp)];
+  bool paging_enabled = (satp >> 31) & 1;
+  if(!paging_enabled) {
+    fault = false;
+    return va;
+  }
+  assert(false);
+  return 0;
+}
 
 void handle_syscall(state_t *s, uint64_t tohost);
 
@@ -31,6 +198,7 @@ static inline int32_t checksum_gprs(const state_t *s) {
   }
   return h;
 }
+
 
 
 struct utype_t {

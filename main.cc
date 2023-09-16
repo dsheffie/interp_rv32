@@ -128,8 +128,14 @@ int main(int argc, char *argv[]) {
     std::cerr << "INTERP : couldn't allocate backing memory!\n";
     exit(-1);
   }
+
+  load_binary(0x80000000, filename.c_str(), s);
   
-  load_elf(filename.c_str(), s);
+  //load_elf(filename.c_str(), s);
+
+
+
+  
   initCapstone();
 
   double runtime = timestamp();
