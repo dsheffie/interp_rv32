@@ -36,6 +36,69 @@ void initState(state_t *s) {
   memset(s, 0, sizeof(state_t));
 }
 
+/* stolen from hw/riscv/virt.{h,c} in qemu */
+
+enum {
+    VIRT_DEBUG,
+    VIRT_MROM,
+    VIRT_TEST,
+    VIRT_RTC,
+    VIRT_CLINT,
+    VIRT_PLIC,
+    VIRT_UART0,
+    VIRT_VIRTIO,
+    VIRT_FLASH,
+    VIRT_DRAM,
+    VIRT_PCIE_MMIO,
+    VIRT_PCIE_PIO,
+    VIRT_PCIE_ECAM
+};
+
+static const struct MemmapEntry {
+  uint32_t base;
+  uint32_t size;
+} virt_memmap[] = {
+    [VIRT_DEBUG] =       {        0x0,         0x100 },
+    [VIRT_MROM] =        {     0x1000,       0x11000 },
+    [VIRT_TEST] =        {   0x100000,        0x1000 },
+    [VIRT_RTC] =         {   0x101000,        0x1000 },
+    [VIRT_CLINT] =       {  0x2000000,       0x10000 },
+    [VIRT_PLIC] =        {  0xc000000,     0x4000000 },
+    [VIRT_UART0] =       { 0x10000000,         0x100 },
+    [VIRT_VIRTIO] =      { 0x10001000,        0x1000 },
+    [VIRT_FLASH] =       { 0x20000000,     0x4000000 },
+    [VIRT_DRAM] =        { 0x80000000,           0x0 },
+    [VIRT_PCIE_MMIO] =   { 0x40000000,    0x40000000 },
+    [VIRT_PCIE_PIO] =    { 0x03000000,    0x00010000 },
+    [VIRT_PCIE_ECAM] =   { 0x30000000,    0x10000000 },
+};
+
+uint32_t va2pa(state_t *s, uint32_t va, bool &fault) {
+  uint32_t satp = s->csr[get_csr_idx(riscv_csr::satp)];
+  bool paging_enabled = (satp >> 31) & 1;
+  uint32_t pa = 0;
+  if(!paging_enabled) {
+    fault = false;
+    pa = va;
+  }
+  else {
+    assert(false);
+  }
+
+  bool found = false;
+  for(int i = 0, r = (sizeof(virt_memmap)/sizeof(virt_memmap[0])); i < r; i++) {
+    if(pa >= virt_memmap[i].base and (pa < (virt_memmap[i].base + virt_memmap[i].size))) {
+      std::cout << "access " << std::hex << pa << std::dec
+		<< " in region " << i << " at icnt " << s->icnt <<"\n";
+      found = true;
+      break;
+    }
+  }
+  
+  return pa;
+}
+
+
 
 
 static inline void execRiscv(state_t *s) {

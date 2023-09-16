@@ -178,16 +178,8 @@ inline static int get_csr_idx(riscv_csr e)
 }
 
 
-static inline uint32_t va2pa(state_t *s, uint32_t va, bool &fault) {
-  uint32_t satp = s->csr[get_csr_idx(riscv_csr::satp)];
-  bool paging_enabled = (satp >> 31) & 1;
-  if(!paging_enabled) {
-    fault = false;
-    return va;
-  }
-  assert(false);
-  return 0;
-}
+uint32_t va2pa(state_t *s, uint32_t va, bool &fault);
+
 
 void handle_syscall(state_t *s, uint64_t tohost);
 
