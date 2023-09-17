@@ -130,6 +130,9 @@ int main(int argc, char *argv[]) {
   }
 
   load_binary(0x80000000, filename.c_str(), s);
+
+  /* value reported by qemu */
+  s->csr[get_csr_idx(riscv_csr::misa)] = 0x4014112d;
   
   //load_elf(filename.c_str(), s);
 

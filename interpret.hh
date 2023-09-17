@@ -58,7 +58,12 @@ enum class riscv_csr {
   mcounteren,
   mscratch,
   mepc,
-  mcause
+  mcause,
+  mtval,
+  mip,
+  pmpcfg0,
+  pmpaddr0,
+  pmpaddr1  
 };
 
 static const std::map<uint32_t, riscv_csr> csr_enum_map = {
@@ -95,7 +100,14 @@ static const std::map<uint32_t, riscv_csr> csr_enum_map = {
   {0x304, riscv_csr::mie},
   {0x305, riscv_csr::mtvec},
   {0x306, riscv_csr::mcounteren},      
-  {0x340, riscv_csr::mscratch},    
+  {0x340, riscv_csr::mscratch},
+  {0x341, riscv_csr::mepc},
+  {0x342, riscv_csr::mcause},  
+  {0x343, riscv_csr::mtval},
+  {0x344, riscv_csr::mip},
+  {0x3a0, riscv_csr::pmpcfg0},
+  {0x3b0, riscv_csr::pmpaddr0},
+  {0x3b1, riscv_csr::pmpaddr1}    
 };
 
 inline static int get_csr_idx(riscv_csr e)
@@ -170,6 +182,20 @@ inline static int get_csr_idx(riscv_csr e)
       return 32;
     case riscv_csr::mscratch:
       return 33;
+    case riscv_csr::mepc:
+      return 34;
+    case riscv_csr::mcause:
+      return 35;
+    case riscv_csr::mtval:
+      return 36;
+    case riscv_csr::mip:
+      return 37;
+    case riscv_csr::pmpcfg0:
+      return 38;
+    case riscv_csr::pmpaddr0:
+      return 39;
+    case riscv_csr::pmpaddr1:
+      return 40;      
     default:
       break;
     }

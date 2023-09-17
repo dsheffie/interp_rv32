@@ -85,6 +85,11 @@ uint32_t va2pa(state_t *s, uint32_t va, bool &fault) {
     assert(false);
   }
 
+  if(pa >= virt_memmap[VIRT_UART0].base and (pa < (virt_memmap[VIRT_UART0].base + virt_memmap[VIRT_UART0].size))) {
+    std::cout << "UART access\n";
+  }
+
+  
   //bool found = false;
   //for(int i = 0, r = (sizeof(virt_memmap)/sizeof(virt_memmap[0])); i < r; i++) {
   //if(pa >= virt_memmap[i].base and (pa < (virt_memmap[i].base + virt_memmap[i].size))) {
@@ -295,10 +300,17 @@ static inline void execRiscv(state_t *s) {
 	case 0x0: {/* AMOADD.W */
 	  int32_t oldv = *(reinterpret_cast<int32_t*>(s->mem + pa));
 	  int32_t newv = oldv + s->gpr[m.r.rs2];
-	  *(reinterpret_cast<int32_t*>(s->mem + pa)) = oldv;
+	  *(reinterpret_cast<int32_t*>(s->mem + pa)) = newv;
 	  s->gpr[m.r.rd] = oldv;
 	  break;
 	}
+	case 0x1: {/* AMOSWAP.W */
+	  int32_t oldv = *(reinterpret_cast<int32_t*>(s->mem + pa));
+	  int32_t newv = s->gpr[m.r.rs2];
+	  *(reinterpret_cast<int32_t*>(s->mem + pa)) = oldv;
+	  s->gpr[m.r.rd] = oldv;
+	  break;
+	};
 	default:
 	  std::cout << "op " << std::hex << op << std::dec << " unhandled\n";
 	  assert(false);
@@ -548,8 +560,8 @@ static inline void execRiscv(state_t *s) {
       uint32_t rs1 = (inst >> 15) & 31;
       uint32_t upper12 = (inst>>20) & 4095;
       const char *ops[] = {"bkt 0", "csrw", "csrr", "bkt 3", "bkt 4", "csrwi", "bkt 6", "bkt 7"};
-      printf("%s, rd = %u, rs1 = %u, %x\n",
-	     ops[funct], rd, rs1, inst>>20);
+      printf("%x, %s, rd = %u, rs1 = %u, %x\n",
+	     s->pc, ops[funct], rd, rs1, inst>>20);
       switch(funct)
 	{
 	case 0:
@@ -570,6 +582,11 @@ static inline void execRiscv(state_t *s) {
 	  }
 	  break;
 	case 1: { /* csrw */
+	  auto it = csr_enum_map.find(upper12);
+	  if(it == csr_enum_map.end()) {
+	    std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";
+	    assert(false);
+	  }
 	  switch(csr_enum_map.at(upper12))
 	    {
 	    case riscv_csr::mtvec:
@@ -581,6 +598,15 @@ static inline void execRiscv(state_t *s) {
 	    case riscv_csr::mscratch:
 	      s->csr[get_csr_idx(riscv_csr::mscratch)] = s->gpr[rs1];
 	      break;
+	    case riscv_csr::pmpcfg0:
+	      s->csr[get_csr_idx(riscv_csr::pmpcfg0)] = s->gpr[rs1];
+	      break;
+	    case riscv_csr::pmpaddr0:
+	      s->csr[get_csr_idx(riscv_csr::pmpaddr0)] = s->gpr[rs1];
+	      break;
+	    case riscv_csr::pmpaddr1:
+	      s->csr[get_csr_idx(riscv_csr::pmpaddr1)] = s->gpr[rs1];
+	      break;
 	    default:
 	      std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";
 	      assert(false);
@@ -590,6 +616,12 @@ static inline void execRiscv(state_t *s) {
 	  break;
 	}
 	case 2: {/* csrr */
+	  auto it = csr_enum_map.find(upper12);
+	  if(it == csr_enum_map.end()) {
+	    std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";
+	    std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
+	    assert(false);
+	  }	  
 	  switch(csr_enum_map.at(upper12))
 	    {
 	    case riscv_csr::mhartid:
@@ -603,6 +635,12 @@ static inline void execRiscv(state_t *s) {
 	      break;
 	    case riscv_csr::mie:
 	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::mie)];
+	      break;
+	    case riscv_csr::pmpaddr0:
+	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::pmpaddr0)];
+	      break;
+	    case riscv_csr::pmpaddr1:
+	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::pmpaddr1)];
 	      break;
 	    default:	
 	      std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";      
@@ -619,12 +657,21 @@ static inline void execRiscv(state_t *s) {
 	  assert(false);
 	  break;
 	case 5: {/* csrwi */
+	  auto it = csr_enum_map.find(upper12);
+	  if(it == csr_enum_map.end()) {
+	    std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";
+	    assert(false);
+	  }
 	  switch(csr_enum_map.at(upper12))
             {
 	    case riscv_csr::mscratch:
 	      s->csr[get_csr_idx(riscv_csr::mscratch)] = rs1;
 	      break;
+	    case riscv_csr::mip:
+	      s->csr[get_csr_idx(riscv_csr::mip)] = rs1;
+	      break;	      
 	    default:
+	      std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";      	      
 	      assert(false);
 	      break;
 	    }
