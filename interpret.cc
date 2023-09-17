@@ -110,7 +110,7 @@ static inline void execRiscv(state_t *s) {
   uint32_t opcode = inst & 127;
 
   if((inst & 3) != 3) {
-    std::cout << "compressed instruction\n";
+    std::cout << "compressed instruction at pc " << std::hex << s->pc << std::dec << "\n";
     exit(-1);
   }
   //std::cout << "instruction bytes " << std::hex << inst << std::dec << "\n";

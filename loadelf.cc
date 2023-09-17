@@ -79,6 +79,16 @@ void load_binary(uint32_t addr, const char* fn, state_t *ms) {
   WRITE_WORD(0x1014, 0x80000000);
   WRITE_WORD(0x1018, 0x80000000);
 
+  fd = open("fdt.bin", O_RDONLY);
+  rc = fstat(fd,&s);
+  buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  for(uint32_t i = 0; i < s.st_size; i++) {
+    mem[i+0x1020] = buf[i];
+  }
+  
+  munmap(buf, s.st_size);
+  close(fd);
+  
   ms->pc = 0x1000;
   
 }
@@ -221,5 +231,8 @@ void load_elf(const char* fn, state_t *ms) {
   WRITE_WORD(0x1014, 0x80000000);
   WRITE_WORD(0x1018, 0x80000000);
 
+  
+  
+  
   ms->pc = 0x1000;
 }
