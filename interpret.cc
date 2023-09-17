@@ -85,15 +85,15 @@ uint32_t va2pa(state_t *s, uint32_t va, bool &fault) {
     assert(false);
   }
 
-  bool found = false;
-  for(int i = 0, r = (sizeof(virt_memmap)/sizeof(virt_memmap[0])); i < r; i++) {
-    if(pa >= virt_memmap[i].base and (pa < (virt_memmap[i].base + virt_memmap[i].size))) {
-      std::cout << "access " << std::hex << pa << std::dec
-		<< " in region " << i << " at icnt " << s->icnt <<"\n";
-      found = true;
-      break;
-    }
-  }
+  //bool found = false;
+  //for(int i = 0, r = (sizeof(virt_memmap)/sizeof(virt_memmap[0])); i < r; i++) {
+  //if(pa >= virt_memmap[i].base and (pa < (virt_memmap[i].base + virt_memmap[i].size))) {
+  //std::cout << "access " << std::hex << pa << std::dec
+  //<< " in region " << i << " at icnt " << s->icnt <<"\n";
+  //found = true;
+  //break;
+  //}
+  //}
   
   return pa;
 }
@@ -277,6 +277,31 @@ static inline void execRiscv(state_t *s) {
 	  break;
 	default:
 	  assert(0);
+	}
+      s->pc += 4;
+      break;
+    }
+
+
+    case 0x2f: {
+      uint32_t op = (inst >> 27)& 31;
+      uint32_t ea = s->gpr[m.r.rs1];
+      uint32_t pa = va2pa(s, ea, fault);
+      if(fault)
+	break;	      
+      
+      switch(op)
+	{
+	case 0x0: {/* AMOADD.W */
+	  int32_t oldv = *(reinterpret_cast<int32_t*>(s->mem + pa));
+	  int32_t newv = oldv + s->gpr[m.r.rs2];
+	  *(reinterpret_cast<int32_t*>(s->mem + pa)) = oldv;
+	  s->gpr[m.r.rd] = oldv;
+	  break;
+	}
+	default:
+	  std::cout << "op " << std::hex << op << std::dec << " unhandled\n";
+	  assert(false);
 	}
       s->pc += 4;
       break;
@@ -522,8 +547,9 @@ static inline void execRiscv(state_t *s) {
       uint32_t funct = (inst >> 12) & 7;
       uint32_t rs1 = (inst >> 15) & 31;
       uint32_t upper12 = (inst>>20) & 4095;
-      printf("funct = %u, rd = %u, rs1 = %u, %x\n",
-	     funct, rd, rs1, inst>>20);
+      const char *ops[] = {"bkt 0", "csrw", "csrr", "bkt 3", "bkt 4", "csrwi", "bkt 6", "bkt 7"};
+      printf("%s, rd = %u, rs1 = %u, %x\n",
+	     ops[funct], rd, rs1, inst>>20);
       switch(funct)
 	{
 	case 0:
@@ -549,7 +575,14 @@ static inline void execRiscv(state_t *s) {
 	    case riscv_csr::mtvec:
 	      s->csr[get_csr_idx(riscv_csr::mtvec)] = s->gpr[rs1];
 	      break;
+	    case riscv_csr::mie:
+	      s->csr[get_csr_idx(riscv_csr::mie)] = s->gpr[rs1];
+	      break;
+	    case riscv_csr::mscratch:
+	      s->csr[get_csr_idx(riscv_csr::mscratch)] = s->gpr[rs1];
+	      break;
 	    default:
+	      std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";
 	      assert(false);
 	      break;
 	    }
@@ -562,7 +595,17 @@ static inline void execRiscv(state_t *s) {
 	    case riscv_csr::mhartid:
 	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::mhartid)];
 	      break;
-	    default:
+	    case riscv_csr::misa:
+	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::misa)];
+	      break;
+	    case riscv_csr::mscratch:
+	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::mscratch)];
+	      break;
+	    case riscv_csr::mie:
+	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::mie)];
+	      break;
+	    default:	
+	      std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";      
 	      assert(false);
 	      break;
 	    }
@@ -575,7 +618,7 @@ static inline void execRiscv(state_t *s) {
 	case 4:
 	  assert(false);
 	  break;
-	case 5: /* csrwi */
+	case 5: {/* csrwi */
 	  switch(csr_enum_map.at(upper12))
             {
 	    case riscv_csr::mscratch:
@@ -587,6 +630,7 @@ static inline void execRiscv(state_t *s) {
 	    }
 	  s->pc += 4;
 	  break;
+	}
 	case 6:
 	  assert(false);
 	  break;
