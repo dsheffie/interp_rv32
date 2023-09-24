@@ -560,20 +560,39 @@ static inline void execRiscv(state_t *s) {
       uint32_t rs1 = (inst >> 15) & 31;
       uint32_t upper12 = (inst>>20) & 4095;
       const char *ops[] = {"bkt 0", "csrw", "csrr", "bkt 3", "bkt 4", "csrwi", "bkt 6", "bkt 7"};
-      printf("%x, %s, rd = %u, rs1 = %u, %x\n",
-	     s->pc, ops[funct], rd, rs1, inst>>20);
+      if(funct != 0) {
+	printf("%x, %s, rd = %u, rs1 = %u, %x\n",
+	       s->pc, ops[funct], rd, rs1, inst>>20);
+      }
       switch(funct)
 	{
 	case 0:
 	  if(rd == 0 && rs1 == 0) {
 	    switch(upper12)
 	      {
+		//case 0x1: {/* EBREAK */
+		//s->csr[get_csr_idx(riscv_csr::mcause)] = TRAP_BREAKPOINT;
+		//fault = true;
+		//break;
+		//};
 	      case 0x105: /* WFI */
 		printf("got wfi\n");
 		s->brk = 1;
 		s->pc += 4;
 		break;
+	      case 0x302: /* MRET */
+		/* do something to the status register too */
+		s->pc = s->csr[get_csr_idx(riscv_csr::mepc)];
+		break;
+		
 	      default:
+		std::cout << std::hex << s->pc << std::dec
+			  << " : " << getAsmString(inst, s->pc)
+			  << " , opcode " << std::hex
+			  << opcode
+			  << std::dec
+			  << " , icnt " << s->icnt
+			  << "\n";
 		assert(false);
 	      }
 	  }
@@ -585,68 +604,26 @@ static inline void execRiscv(state_t *s) {
 	  auto it = csr_enum_map.find(upper12);
 	  if(it == csr_enum_map.end()) {
 	    std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";
-	    assert(false);
+	    s->csr[get_csr_idx(riscv_csr::mcause)] = TRAP_INST_ILLEGAL;
+	    s->csr[get_csr_idx(riscv_csr::mtval)] = inst;
+	    fault = true;
+	    break;
 	  }
-	  switch(csr_enum_map.at(upper12))
-	    {
-	    case riscv_csr::mtvec:
-	      s->csr[get_csr_idx(riscv_csr::mtvec)] = s->gpr[rs1];
-	      break;
-	    case riscv_csr::mie:
-	      s->csr[get_csr_idx(riscv_csr::mie)] = s->gpr[rs1];
-	      break;
-	    case riscv_csr::mscratch:
-	      s->csr[get_csr_idx(riscv_csr::mscratch)] = s->gpr[rs1];
-	      break;
-	    case riscv_csr::pmpcfg0:
-	      s->csr[get_csr_idx(riscv_csr::pmpcfg0)] = s->gpr[rs1];
-	      break;
-	    case riscv_csr::pmpaddr0:
-	      s->csr[get_csr_idx(riscv_csr::pmpaddr0)] = s->gpr[rs1];
-	      break;
-	    case riscv_csr::pmpaddr1:
-	      s->csr[get_csr_idx(riscv_csr::pmpaddr1)] = s->gpr[rs1];
-	      break;
-	    default:
-	      std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";
-	      assert(false);
-	      break;
-	    }
+	  s->csr[get_csr_idx(it->second)] = s->gpr[rs1];
 	  s->pc += 4;
 	  break;
 	}
 	case 2: {/* csrr */
 	  auto it = csr_enum_map.find(upper12);
 	  if(it == csr_enum_map.end()) {
-	    std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";
+	    std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled, trap\n";
 	    std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
-	    assert(false);
-	  }	  
-	  switch(csr_enum_map.at(upper12))
-	    {
-	    case riscv_csr::mhartid:
-	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::mhartid)];
-	      break;
-	    case riscv_csr::misa:
-	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::misa)];
-	      break;
-	    case riscv_csr::mscratch:
-	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::mscratch)];
-	      break;
-	    case riscv_csr::mie:
-	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::mie)];
-	      break;
-	    case riscv_csr::pmpaddr0:
-	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::pmpaddr0)];
-	      break;
-	    case riscv_csr::pmpaddr1:
-	      s->gpr[rd] = s->csr[get_csr_idx(riscv_csr::pmpaddr1)];
-	      break;
-	    default:	
-	      std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";      
-	      assert(false);
-	      break;
-	    }
+	    s->csr[get_csr_idx(riscv_csr::mcause)] = TRAP_INST_ILLEGAL;
+	    s->csr[get_csr_idx(riscv_csr::mtval)] = inst;
+	    fault = true;
+	    break;	    
+	  }
+	  s->gpr[rd] = s->csr[get_csr_idx(it->second)];
 	  s->pc += 4;
 	  break;
 	}
@@ -662,19 +639,7 @@ static inline void execRiscv(state_t *s) {
 	    std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";
 	    assert(false);
 	  }
-	  switch(csr_enum_map.at(upper12))
-            {
-	    case riscv_csr::mscratch:
-	      s->csr[get_csr_idx(riscv_csr::mscratch)] = rs1;
-	      break;
-	    case riscv_csr::mip:
-	      s->csr[get_csr_idx(riscv_csr::mip)] = rs1;
-	      break;	      
-	    default:
-	      std::cout << "csr at " << std::hex << upper12 << std::dec << " unhandled\n";      	      
-	      assert(false);
-	      break;
-	    }
+	  s->csr[get_csr_idx(it->second)] = rs1;
 	  s->pc += 4;
 	  break;
 	}
@@ -705,6 +670,11 @@ static inline void execRiscv(state_t *s) {
       exit(-1);
       break;
     }
+
+  if(fault) {
+    s->csr[get_csr_idx(riscv_csr::mepc)] = s->pc;
+    s->pc = s->csr[get_csr_idx(riscv_csr::mtvec)];
+  }
 
   s->icnt++;
 #if OLD_GPR

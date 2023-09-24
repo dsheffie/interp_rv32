@@ -22,6 +22,26 @@ struct state_t{
   uint64_t icnt;
 };
 
+#define MODE_USER 0
+#define MODE_SUPERVISOR 1
+#define MODE_HYPERVISOR 2
+#define MODE_MACHINE 3
+
+#define TRAP_MISALIGNED_INST_ADDRESS 0
+#define TRAP_INST_ACCESS_FAULT 1
+#define TRAP_INST_ILLEGAL 2
+#define TRAP_BREAKPOINT 3
+#define TRAP_MISALIGNED_LOAD_ADDRESS 4
+#define TRAP_LOAD_ACCESS_FAULT 5
+#define TRAP_MISALIGNED_STORE_ADDRESS 6
+#define TRAP_STORE_ACCESS_FAULT 7
+#define TRAP_ENV_CALL_FROM_U 8
+#define TRAP_ENV_CALL_FROM_S 9
+#define TRAP_ENV_CALL_FROM_M 11
+#define TRAP_INST_PAGE_FAULT 12
+#define TRAP_LOAD_PAGE_FAULT 13
+#define TRAP_STORE_PAGE_FAULT 15
+
 enum class riscv_csr {
   fflags,
   frm,
@@ -217,6 +237,36 @@ static inline int32_t checksum_gprs(const state_t *s) {
   return h;
 }
 
+struct status_t {
+  uint32_t wpri_0 : 1;
+  uint32_t sie : 1;
+  uint32_t wpri_2 : 1;
+  uint32_t mie : 1;
+  uint32_t wpri_4 : 1;
+  uint32_t spie : 1;
+  uint32_t ube : 1;
+  uint32_t mpie : 1;
+  uint32_t spp : 1;
+  uint32_t vs : 2;
+  uint32_t mpp : 2;
+  uint32_t fs : 2;
+  uint32_t xs : 2;
+  uint32_t mprv : 1;
+  uint32_t sum : 1;
+  uint32_t mxr : 1;
+  uint32_t tvm : 1;
+  uint32_t tw : 1;
+  uint32_t tsr : 1;
+  uint32_t wpri_23 : 8;
+  uint32_t sd : 1;
+};
+
+union status {
+  status_t s;
+  uint32_t raw;
+  status(uint32_t x) :
+    raw(x) {}
+};
 
 
 struct utype_t {
