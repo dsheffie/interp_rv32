@@ -1,6 +1,9 @@
 #ifndef __GLOBALSH__
 #define __GLOBALSH__
 
+#include "fully_assoc_cache.hh"
+
+
 namespace globals {
   extern uint32_t tohost_addr;
   extern uint32_t fromhost_addr;
@@ -9,6 +12,7 @@ namespace globals {
   extern bool silent;
   extern bool log;
   extern std::map<std::string, uint32_t> symtab;
+  extern fully_assoc_cache *fa_cache;
 };
 
 #endif

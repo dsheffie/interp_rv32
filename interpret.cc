@@ -20,6 +20,8 @@
 #include "globals.hh"
 
 
+
+
 std::ostream &operator<<(std::ostream &out, const state_t & s) {
   using namespace std;
   out << "PC : " << hex << s.last_pc << dec << "\n";
@@ -88,6 +90,8 @@ static inline void execRiscv(state_t *s) {
 	  disp |= 0xfffff000;
 	}
 	uint32_t ea = disp + s->gpr[m.l.rs1];
+	globals::fa_cache->access(ea);
+	
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
@@ -192,6 +196,8 @@ static inline void execRiscv(state_t *s) {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       uint32_t ea = disp + s->gpr[m.s.rs1];
+      globals::fa_cache->access(ea);
+      
       //std::cout << "STORE EA " << std::hex << ea << std::dec << "\n";      
       switch(m.s.sel)
 	{
@@ -514,7 +520,12 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       break;
     }
     case SYS_close: {
-      buf[0] = close(buf[1]);
+      if(buf[1] < 2) {
+	buf[0] = 0;
+      }
+      else {
+	buf[0] = close(buf[1]);
+      }
       break;
     }
     case SYS_read: {

@@ -32,7 +32,7 @@ std::map<std::string, uint32_t> globals::symtab;
 char **globals::sysArgv = nullptr;
 int globals::sysArgc = 0;
 bool globals::silent = true;
-
+fully_assoc_cache* globals::fa_cache = nullptr;
 static state_t *s = nullptr;
 
 
@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
   std::string sysArgs, filename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
   bool hash = false;
-
+  int lines = 64;
   try {
     po::options_description desc("Options");
     desc.add_options() 
@@ -83,6 +83,7 @@ int main(int argc, char *argv[]) {
       ("dumpicnt", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
+      ("lines", po::value<int>(&lines)->default_value(64), "cache model lines")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -108,6 +109,8 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  globals::fa_cache = new fully_assoc_cache(lines);
+  
   /* Build argc and argv */
   globals::sysArgc = buildArgcArgv(filename.c_str(),sysArgs,globals::sysArgv);
 
@@ -161,6 +164,13 @@ int main(int argc, char *argv[]) {
 	      << std::round((s->icnt/runtime)*1e-6) << " megains / sec "
 	      << KNRM  << "\n";
   }
+
+  uint64_t hits = globals::fa_cache->get_hits();
+  uint64_t accesses = globals::fa_cache->get_accesses();
+  uint64_t misses = accesses-hits;
+
+  std::cout << "mpki\n";
+  std::cout << globals::fa_cache->get_size() << "," << 1000.0 * (static_cast<double>(misses) / s->icnt) << "\n";
 
   
   munmap(mempt, 1UL<<32);
