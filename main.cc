@@ -32,7 +32,7 @@ std::map<std::string, uint32_t> globals::symtab;
 char **globals::sysArgv = nullptr;
 int globals::sysArgc = 0;
 bool globals::silent = true;
-fully_assoc_cache* globals::fa_cache = nullptr;
+nway_cache* globals::fa_cache = nullptr;
 static state_t *s = nullptr;
 
 
@@ -109,7 +109,9 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  globals::fa_cache = new fully_assoc_cache(lines);
+  globals::fa_cache = new nway_cache(8, lines);
+  
+  std::cout << globals::fa_cache->get_size() << "\n";
   
   /* Build argc and argv */
   globals::sysArgc = buildArgcArgv(filename.c_str(),sysArgs,globals::sysArgv);
@@ -169,8 +171,7 @@ int main(int argc, char *argv[]) {
   uint64_t accesses = globals::fa_cache->get_accesses();
   uint64_t misses = accesses-hits;
 
-  std::cout << "mpki\n";
-  std::cout << globals::fa_cache->get_size() << "," << 1000.0 * (static_cast<double>(misses) / s->icnt) << "\n";
+  std::cout << "mpki," << globals::fa_cache->get_size() << "," << 1000.0 * (static_cast<double>(misses) / s->icnt) << "\n";
 
   
   munmap(mempt, 1UL<<32);

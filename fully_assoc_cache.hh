@@ -7,9 +7,13 @@
 #include <iostream>
 #include <cassert>
 
+#include "nway_cache.hh"
+
+
 class fully_assoc_cache {
 private:
   static const uint32_t MASK = ~15U;
+
   struct entry {
     entry *next;
     entry *prev;
