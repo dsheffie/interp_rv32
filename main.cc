@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
       ("dumpicnt", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
-      ("lines", po::value<int>(&lines)->default_value(64), "cache model lines")
+      ("lines", po::value<int>(&lines)->default_value(2), "cache model lines")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);

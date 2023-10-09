@@ -7,14 +7,59 @@
 #include <iostream>
 #include <cassert>
 
-class nway_cache {
-private:
+class cache {
+protected:
   static const uint32_t CL_LEN = 4;
   static const uint32_t MASK = ~((1U<<CL_LEN)-1);
+  typedef uint32_t addr_t;
+  size_t nways,lg2_lines;
+  uint64_t hits, accesses;
+public:
+  cache(size_t nways, size_t lg2_lines) :
+    nways(nways), lg2_lines(lg2_lines), hits(0), accesses(0) {}
+  uint64_t get_hits() const {
+    return hits;
+  }
+  uint64_t get_accesses() const {
+    return accesses;
+  }
+  uint64_t get_size() const {
+    return (1UL<<lg2_lines) * nways * ((~MASK)+1);
+  }
+  virtual ~cache() {}
+  virtual void access(addr_t ea) = 0;
+};
+
+class direct_mapped_cache : public cache {
+private:
+  addr_t *tags;
+public:
+  direct_mapped_cache(size_t lg2_lines) : cache(nways, 1)  {
+    tags = new addr_t[(1UL<<lg2_lines)];
+    memset(tags, 0, sizeof(addr_t)*(1UL<<lg2_lines));
+  }
+  ~direct_mapped_cache() {
+    delete [] tags;
+  }
+  void access(addr_t ea) override {
+    ea &= MASK;
+    size_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
+    accesses++;
+    if(tags[idx] == ea) {
+      hits++;
+    }
+    else {
+      tags[idx] = ea;
+    }
+  }
+};
+
+class nway_cache : public cache{
+private:
   struct entry {
     entry *next;
     entry *prev;
-    uint32_t addr;
+    addr_t addr;
   };
 
   struct way {
@@ -37,7 +82,7 @@ private:
     ~way() {
       delete [] entries;
     }
-    bool access(uint32_t ea) {    
+    bool access(addr_t ea) {    
       bool found = false;
       entry *p = lrulist, *l = nullptr;
       while(p) {
@@ -97,14 +142,12 @@ private:
     
   };
   
-  size_t nways,lg2_lines;
   way **ways;
 
-  uint64_t hits, accesses;
+
   
 public:
-  nway_cache(size_t nways, size_t lg2_lines) :
-    nways(nways), lg2_lines(lg2_lines), hits(0), accesses(0) {
+  nway_cache(size_t nways, size_t lg2_lines) : cache(nways, lg2_lines)  {
     ways = new way*[(1UL<<lg2_lines)];
     for(size_t l = 0; l < (1UL<<lg2_lines); l++) {
       ways[l] = new way(nways);
@@ -113,19 +156,11 @@ public:
   ~nway_cache() {
     delete [] ways;
   }
-  uint64_t get_hits() const {
-    return hits;
-  }
-  uint64_t get_accesses() const {
-    return accesses;
-  }
-  uint64_t get_size() const {
-    return (1UL<<lg2_lines) * nways * ((~MASK)+1);
-  }
-  void access(uint32_t ea) {
+  void access(addr_t ea) override {
     ea &= MASK;
-    uint32_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
+    size_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
     accesses++;
+    assert(idx < ( (1UL<<lg2_lines) ));
     bool h = ways[idx]->access(ea);
     if(h) {
       hits++;
