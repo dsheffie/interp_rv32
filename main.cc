@@ -33,8 +33,11 @@ char **globals::sysArgv = nullptr;
 int globals::sysArgc = 0;
 bool globals::silent = true;
 
-static state_t *s = nullptr;
 
+SDL_Window *globals::sdlwin = nullptr;
+SDL_Surface *globals::sdlscr = nullptr;
+
+static state_t *s = nullptr;
 
 static int buildArgcArgv(const char *filename, const std::string &sysArgs, char **&argv){
   int cnt = 0;
@@ -132,6 +135,18 @@ int main(int argc, char *argv[]) {
   load_elf(filename.c_str(), s);
   initCapstone();
 
+  assert(SDL_Init(SDL_INIT_VIDEO) == 0);
+  globals::sdlwin = SDL_CreateWindow("FRAMEBUFFER",
+				     SDL_WINDOWPOS_UNDEFINED,
+				     SDL_WINDOWPOS_UNDEFINED,
+				     FB_WIDTH,
+				     FB_HEIGHT,
+				     SDL_WINDOW_SHOWN);
+  assert(globals::sdlwin != nullptr);
+  globals::sdlscr = SDL_GetWindowSurface(globals::sdlwin);
+  assert(globals::sdlscr);
+    
+    
   double runtime = timestamp();
   runRiscv(s,dumpIcnt);
   runtime = timestamp()-runtime;
@@ -172,7 +187,10 @@ int main(int argc, char *argv[]) {
   }
   free(s);
   stopCapstone();
-
+  if(globals::sdlwin) {
+    SDL_DestroyWindow(globals::sdlwin);
+    SDL_Quit();
+  }
   return 0;
 }
 

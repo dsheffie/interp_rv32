@@ -4,7 +4,7 @@ OBJ = main.o loadelf.o disassemble.o helper.o interpret.o saveState.o githash.o
 
 ifeq ($(UNAME_S),Linux)
 	CXX = g++ -march=native -flto
-	EXTRA_LD = -ldl -lffi -lbfd -lunwind -lboost_program_options -lcapstone
+	EXTRA_LD = -ldl -lffi -lbfd -lunwind -lboost_program_options -lcapstone -lSDL2
 endif
 
 ifeq ($(UNAME_S),FreeBSD)

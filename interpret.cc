@@ -567,6 +567,16 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       buf[0] = gettimeofday(tp, tzp);
       break;
     }
+    case 0x1337: {
+      SDL_LockSurface(globals::sdlscr);
+      uint8_t *px = reinterpret_cast<uint8_t*>(globals::sdlscr->pixels);
+      assert(px);
+      memcpy(px, (s->mem + buf[1]), sizeof(uint32_t)*FB_WIDTH*FB_HEIGHT);
+      SDL_UnlockSurface(globals::sdlscr);
+      SDL_UpdateWindowSurface(globals::sdlwin);
+      break;
+    }
+      
     default:
       std::cout << "syscall " << buf[0] << " unsupported\n";
       exit(-1);
