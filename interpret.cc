@@ -91,22 +91,20 @@ static inline void execRiscv(state_t *s) {
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
-	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int8_t*>(s->mem + ea)));	 
+	    s->gpr[m.l.rd] =s->mm->load(mem_op_type::LB, ea);
 	    break;
 	  case 0x1: /* lh */
-	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(s->mem + ea)));	 
+	    s->gpr[m.l.rd] =s->mm->load(mem_op_type::LH, ea);	    
 	    break;
 	  case 0x2: /* lw */
-	    s->gpr[m.l.rd] = *(reinterpret_cast<int32_t*>(s->mem + ea));
+	    s->gpr[m.l.rd] =s->mm->load(mem_op_type::LW, ea);	    	    
 	    break;
 	  case 0x4: {/* lbu */
-	    uint32_t b = s->mem[ea];
-	    *reinterpret_cast<uint32_t*>(&s->gpr[m.l.rd]) = b;
+	    s->gpr[m.l.rd] =s->mm->load(mem_op_type::LBU, ea);	    	    	    
 	    break;
 	  }
 	  case 0x5: { /* lhu */
-	    uint16_t b = *reinterpret_cast<uint16_t*>(s->mem + ea);
-	    *reinterpret_cast<uint32_t*>(&s->gpr[m.l.rd]) = b;
+	    s->gpr[m.l.rd] =s->mm->load(mem_op_type::LHU, ea);	    	    	    
 	    break;
 	  }
 	  default:
@@ -196,13 +194,13 @@ static inline void execRiscv(state_t *s) {
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
-	  s->mem[ea] = *reinterpret_cast<uint8_t*>(&s->gpr[m.s.rs2]);
+	  s->mm->store(mem_op_type::SB, ea, s->gpr[m.s.rs2]);	  
 	  break;
 	case 0x1: /* sh */
-	  *(reinterpret_cast<uint16_t*>(s->mem + ea)) = *reinterpret_cast<uint16_t*>(&s->gpr[m.s.rs2]);
+	  s->mm->store(mem_op_type::SH, ea, s->gpr[m.s.rs2]);
 	  break;
 	case 0x2: /* sw */
-	  *(reinterpret_cast<int32_t*>(s->mem + ea)) = s->gpr[m.s.rs2];
+	  s->mm->store(mem_op_type::SW, ea, s->gpr[m.s.rs2]);
 	  break;
 	default:
 	  assert(0);
@@ -497,8 +495,8 @@ static inline void execRiscv(state_t *s) {
 #endif
 }
 
-void runRiscv(state_t *s, uint64_t dumpIcnt) {
-  while(s->brk==0 and (s->icnt < s->maxicnt) and (s->icnt < dumpIcnt)) {
+void runRiscv(state_t *s) {
+  while(s->brk==0 and (s->icnt < s->maxicnt)) {
     execRiscv(s);
   }
 }
@@ -565,6 +563,18 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       struct timeval *tp = reinterpret_cast<struct timeval*>(s->mem + buf[1]);
       struct timezone *tzp = reinterpret_cast<struct timezone*>(s->mem + buf[2]);
       buf[0] = gettimeofday(tp, tzp);
+      break;
+    }
+    case 0x1337: {
+      uint32_t pc = buf[1];
+      uint32_t arg = buf[2];
+      uint32_t tid = buf[3];
+
+      std::cout << "start thread " << tid << " at " << std::hex << pc << std::dec <<  "\n";
+      globals::threads[tid].thr_state->pc = pc;
+      globals::threads[tid].thr_state->gpr[10] = arg;
+      globals::threads[tid].thr_state->gpr[11] = tid;
+      globals::threads[tid].run = 1;
       break;
     }
     default:

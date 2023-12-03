@@ -7,20 +7,87 @@
 #include <ostream>
 #include <map>
 #include <string>
+#include <cassert>
+#include <pthread.h>
 
 #define MARGS 20
+
+enum class mem_op_type { LB, LH, LW, LBU, LHU, SB, SH, SW};
+
+
+struct tso_mem {
+  pthread_mutex_t *mtx;
+  uint8_t *mem;
+
+  tso_mem(pthread_mutex_t *mtx, uint8_t *mem) :
+    mtx(mtx), mem(mem) {}
+  
+  void store(mem_op_type ty, uint32_t ea, uint32_t data) {
+    pthread_mutex_lock(mtx);
+    switch(ty)
+      {
+      case mem_op_type::SB:
+	mem[ea] = *reinterpret_cast<uint8_t*>(&data);	
+	break;
+      case mem_op_type::SH:
+	*(reinterpret_cast<uint16_t*>(mem + ea)) = *reinterpret_cast<uint16_t*>(&data);	
+	break;
+      case mem_op_type::SW:
+	*(reinterpret_cast<uint32_t*>(mem + ea)) = *reinterpret_cast<uint32_t*>(&data);		
+	break;
+      default:
+	assert(0);
+      }
+    pthread_mutex_unlock(mtx);    
+  }
+  int32_t load(mem_op_type ty, uint32_t ea) {
+    int32_t r = 0;
+    pthread_mutex_lock(mtx);
+    switch(ty)
+      {
+      case mem_op_type::LB:
+	r = static_cast<int32_t>(*(reinterpret_cast<int8_t*>(mem + ea)));
+	break;
+      case mem_op_type::LH:
+	r = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(mem + ea)));
+	break;
+      case mem_op_type::LW:
+	r = *reinterpret_cast<int32_t*>(mem + ea);
+	break;
+      case mem_op_type::LBU: {
+	uint32_t b = mem[ea];
+	r = *reinterpret_cast<int32_t*>(&b);
+	break;
+      }
+      case mem_op_type::LHU: {
+	uint32_t b = *reinterpret_cast<uint16_t*>(mem + ea);
+	r = *reinterpret_cast<int32_t*>(&b);
+	break;
+      }
+      default:
+	assert(0);
+      }
+    pthread_mutex_unlock(mtx);        
+    return r;
+  }
+  
+};
+
 
 struct state_t{
   uint32_t pc;
   uint32_t last_pc;
   int32_t gpr[32];
   uint8_t *mem;
+  tso_mem *mm;
   uint8_t brk;
   uint8_t bad_addr;
   uint32_t epc;
   uint64_t maxicnt;
   uint64_t icnt;
 };
+
+
 
 void handle_syscall(state_t *s, uint64_t tohost);
 
@@ -115,7 +182,7 @@ union riscv_t {
 };
 
 void initState(state_t *s);
-void runRiscv(state_t *s, uint64_t dumpIcnt);
+void runRiscv(state_t *s);
 
 /* stolen from libgloss-htif : syscall.h */
 #define SYS_getcwd 17
