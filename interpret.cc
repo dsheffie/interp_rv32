@@ -467,7 +467,8 @@ static inline void execRiscv(state_t *s) {
       break;
     
     default:
-      std::cout << std::hex << s->pc << std::dec
+      std::cout << "thread " << s->tid << " " 
+		<< std::hex << s->pc << std::dec
 		<< " : " << getAsmString(inst, s->pc)
 		<< " , opcode " << std::hex
 		<< opcode
