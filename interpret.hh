@@ -5,23 +5,93 @@
 #include <cstdlib>
 #include <cstdio>
 #include <ostream>
+#include <iostream>
 #include <map>
 #include <string>
 #include <cassert>
 #include <pthread.h>
+#include <list>
 
 #define MARGS 20
 
 enum class mem_op_type { LB, LH, LW, LBU, LHU, SB, SH, SW};
+enum class match_type {no_match, partial_match, sub_match, full_match};
+
+struct store_txn {
+  uint32_t addr;
+  uint32_t sz;
+  uint32_t data;
+  store_txn(uint32_t addr, uint32_t sz, uint32_t data) : addr(addr), sz(sz), data(data) {}
+
+  match_type should_forward(uint32_t ld_addr, uint32_t ld_sz) {
+    uint32_t l = ld_addr + ld_sz;
+    uint32_t s = addr + sz;
+    if((ld_addr == addr) and (ld_sz == sz)) {
+      return match_type::full_match;
+    }
+    else if(ld_addr >= addr and (l <= s)) {
+      return match_type::sub_match;
+    }
+    else if((l <= addr) or (s <= ld_addr))
+      return match_type::no_match;
+    return match_type::partial_match;
+  }
+};
+
+struct store_queue {
+  uint32_t sz;
+  uint8_t *mem;
+  pthread_mutex_t * m_mtx;
+  std::list<store_txn> q;
+  uint32_t rx;
+  store_queue(uint32_t lg_sz, uint8_t *mem, pthread_mutex_t *m_mtx, uint32_t rx) :
+    sz(1U<<lg_sz), mem(mem), m_mtx(m_mtx), rx(rx) {
+  }
+  ~store_queue() {}
+
+  void update_rng() {
+    rx ^= rx << 13;
+    rx ^= rx >> 17;
+    rx ^= rx << 5;
+  }
+  
+  void drain();
+  void pop_one();
+  void store(uint32_t ea, uint32_t sz, uint32_t data);
+  int32_t load(uint32_t ea, uint32_t sz, bool u = false);
+
+};
+
+static const std::map<mem_op_type,uint32_t> sz_map = {
+  {mem_op_type::SB,1},
+  {mem_op_type::SH,2},
+  {mem_op_type::SW,4},
+  {mem_op_type::LB,1},
+  {mem_op_type::LBU,1},  
+  {mem_op_type::LH,2},
+  {mem_op_type::LHU,2},  
+  {mem_op_type::LW,4}  
+};
 
 /* ha - really sc_mem */
 struct tso_mem {
   pthread_mutex_t *mtx;
   uint8_t *mem;
-
-  tso_mem(pthread_mutex_t *mtx, uint8_t *mem) :
-    mtx(mtx), mem(mem) {}
+  uint32_t tid;
+  store_queue *st;
   
+  
+  tso_mem(pthread_mutex_t *mtx, uint8_t *mem, uint32_t tid) :
+    mtx(mtx), mem(mem), tid(tid) {
+    st = new store_queue(4, mem, mtx, tid+1);
+  }
+  ~tso_mem() {
+    delete st;
+  }
+  void store(mem_op_type ty, uint32_t ea, uint32_t data);
+  int32_t load(mem_op_type ty, uint32_t ea);
+  
+#if 0
   void store(mem_op_type ty, uint32_t ea, uint32_t data) {
     pthread_mutex_lock(mtx);
     switch(ty)
@@ -40,6 +110,7 @@ struct tso_mem {
       }
     pthread_mutex_unlock(mtx);    
   }
+
   int32_t load(mem_op_type ty, uint32_t ea) {
     int32_t r = 0;
     pthread_mutex_lock(mtx);
@@ -70,7 +141,7 @@ struct tso_mem {
     pthread_mutex_unlock(mtx);        
     return r;
   }
-  
+#endif  
 };
 
 

@@ -32,7 +32,7 @@ std::map<std::string, uint32_t> globals::symtab;
 char **globals::sysArgv = nullptr;
 int globals::sysArgc = 0;
 bool globals::silent = true;
-rvthr* globals::threads = nullptr;
+std::vector<rvthr> globals::threads;
 
 static state_t *s = nullptr;
 
@@ -154,23 +154,23 @@ int main(int argc, char *argv[]) {
   initCapstone();
 
   threads = new pthread_t[nthr];
-  rvthr *args = new rvthr[nthr];
-  globals::threads = args;
+
+  globals::threads.resize(nthr);
   for(int i = 0; i < nthr; i++) {
-    args[i].tid = i;
-    args[i].run = (i == 0);
-    args[i].thr_state = new state_t;
-    args[i].thr_state->mem = s->mem;
-    args[i].thr_state->mm = new tso_mem(&mtx, s->mem);
-    args[i].thr_state->pc = s->pc;
+    globals::threads[i].tid = i;
+    globals::threads[i].run = (i == 0);
+    globals::threads[i].thr_state = new state_t;
+    globals::threads[i].thr_state->mem = s->mem;
+    globals::threads[i].thr_state->mm = new tso_mem(&mtx, s->mem, i+1);
+    globals::threads[i].thr_state->pc = s->pc;
     for(int j = 0; j < 32; j++) {
-      args[i].thr_state->gpr[j] = s->gpr[j];
+      globals::threads[i].thr_state->gpr[j] = s->gpr[j];
     }
-    args[i].thr_state->tid = i;
-    args[i].thr_state->maxicnt = s->maxicnt;
+    globals::threads[i].thr_state->tid = i;
+    globals::threads[i].thr_state->maxicnt = s->maxicnt;
   }
   for(int i = 0; i < nthr; i++) {
-    pthread_create(&threads[i], nullptr, thr_worker, &args[i]);
+    pthread_create(&threads[i], nullptr, thr_worker, &globals::threads[i]);
   }
 
   for(int i = 0; i < nthr; i++) {

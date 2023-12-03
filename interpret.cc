@@ -60,7 +60,7 @@ static inline void execRiscv(state_t *s) {
   }
 
 
-  if(globals::log) {
+  if(globals::log && s->tid == 0) {
     std::cout << std::hex << s->pc << std::dec
 	      << " : " << getAsmString(inst, s->pc)
 	      << " , opcode " << std::hex
@@ -502,7 +502,13 @@ void runRiscv(state_t *s) {
 }
 
 void handle_syscall(state_t *s, uint64_t tohost) {
-  uint8_t *mem = s->mem;  
+  s->mm->st->drain();
+
+  
+  uint8_t *mem = s->mem;
+
+  
+  
   if(tohost & 1) {
     /* exit */
     s->brk = 1;
@@ -569,12 +575,22 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       uint32_t pc = buf[1];
       uint32_t arg = buf[2];
       uint32_t tid = buf[3];
-
-      std::cout << "start thread " << tid << " at " << std::hex << pc << std::dec <<  "\n";
-      globals::threads[tid].thr_state->pc = pc;
-      globals::threads[tid].thr_state->gpr[10] = arg;
-      globals::threads[tid].thr_state->gpr[11] = tid;
-      globals::threads[tid].run = 1;
+      if((tid < globals::threads.size()) and (globals::threads[tid].run == 0)) {
+	std::cout << "start thread " << tid << " at " << std::hex << pc << std::dec <<  "\n";
+	globals::threads[tid].thr_state->pc = pc;
+	globals::threads[tid].thr_state->gpr[10] = arg;
+	globals::threads[tid].thr_state->gpr[11] = tid;
+	globals::threads[tid].run = 1;
+      }
+      else {
+	std::cout << "fatal : can't create thread\n";
+	s->brk = 1;
+      }
+      break;
+    }
+    case 0x1338: {
+      //globals::threads[s->tid].run = 0;      
+      s->brk = 1;
       break;
     }
     default:

@@ -1,6 +1,8 @@
 #ifndef __GLOBALSH__
 #define __GLOBALSH__
 
+#include <vector>
+
 struct rvthr {
   int tid;
   int run;
@@ -15,7 +17,7 @@ namespace globals {
   extern bool silent;
   extern bool log;
   extern std::map<std::string, uint32_t> symtab;
-  extern rvthr* threads;
+  extern std::vector<rvthr> threads;
 };
 
 #endif
