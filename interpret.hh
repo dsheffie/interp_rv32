@@ -14,7 +14,7 @@
 
 enum class mem_op_type { LB, LH, LW, LBU, LHU, SB, SH, SW};
 
-
+/* ha - really sc_mem */
 struct tso_mem {
   pthread_mutex_t *mtx;
   uint8_t *mem;
@@ -85,6 +85,7 @@ struct state_t{
   uint32_t epc;
   uint64_t maxicnt;
   uint64_t icnt;
+  int tid;
 };
 
 

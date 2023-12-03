@@ -43,7 +43,7 @@ static inline void execRiscv(state_t *s) {
 
   uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
   uint32_t opcode = inst & 127;
-  
+
 #if 0
   std::cout << std::hex << s->pc << "\n";
   for(int r = 0; r < 32; r++) {

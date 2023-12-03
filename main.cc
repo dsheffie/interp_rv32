@@ -166,6 +166,7 @@ int main(int argc, char *argv[]) {
     for(int j = 0; j < 32; j++) {
       args[i].thr_state->gpr[j] = s->gpr[j];
     }
+    args[i].thr_state->tid = i;
     args[i].thr_state->maxicnt = s->maxicnt;
   }
   for(int i = 0; i < nthr; i++) {
