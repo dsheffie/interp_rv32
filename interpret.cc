@@ -526,7 +526,10 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       break;
     }
     case SYS_close: {
-      buf[0] = close(buf[1]);
+      buf[0] = 0;
+      if(buf[1] > 2) {
+	buf[0] = close(buf[1]);
+      }
       break;
     }
     case SYS_read: {
